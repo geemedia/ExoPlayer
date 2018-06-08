@@ -87,6 +87,8 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
   public static final int MODE_RELEASE = 3;
   /** Number of times to retry for initial provisioning and key request for reporting error. */
   public static final int INITIAL_DRM_REQUEST_RETRY_COUNT = 3;
+  /** The maximum remaining duration before renewing the license, in seconds. */
+  private static final int MAX_LICENSE_DURATION_TO_RENEW = 60;
 
   private static final String TAG = "DefaultDrmSessionMgr";
   private static final String CENC_SCHEME_MIME_TYPE = "cenc";
@@ -98,6 +100,7 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
   private final EventDispatcher eventDispatcher;
   private final boolean multiSession;
   private final int initialDrmRequestRetryCount;
+  private final int maxLicenseDurationToRenew;
 
   private final List<DefaultDrmSession<T>> sessions;
   private final List<DefaultDrmSession<T>> provisioningSessions;
@@ -343,12 +346,43 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
    *     key request before reporting error.
    */
   public DefaultDrmSessionManager(
+          UUID uuid,
+          ExoMediaDrm<T> mediaDrm,
+          MediaDrmCallback callback,
+          HashMap<String, String> optionalKeyRequestParameters,
+          boolean multiSession,
+          int initialDrmRequestRetryCount) {
+    this(
+        uuid,
+        mediaDrm,
+        callback,
+        optionalKeyRequestParameters,
+        multiSession,
+        initialDrmRequestRetryCount,
+        MAX_LICENSE_DURATION_TO_RENEW);
+  }
+
+  /**
+   * @param uuid The UUID of the drm scheme.
+   * @param mediaDrm An underlying {@link ExoMediaDrm} for use by the manager.
+   * @param callback Performs key and provisioning requests.
+   * @param optionalKeyRequestParameters An optional map of parameters to pass as the last argument
+   *     to {@link ExoMediaDrm#getKeyRequest(byte[], byte[], String, int, HashMap)}. May be null.
+   * @param multiSession A boolean that specify whether multiple key session support is enabled.
+   *     Default is false.
+   * @param initialDrmRequestRetryCount The number of times to retry for initial provisioning and
+   *     key request before reporting error.
+   * @param maxLicenseDurationToRenew The maximum remaining duration before renewing the license,
+   *     in seconds.
+   */
+  public DefaultDrmSessionManager(
       UUID uuid,
       ExoMediaDrm<T> mediaDrm,
       MediaDrmCallback callback,
       HashMap<String, String> optionalKeyRequestParameters,
       boolean multiSession,
-      int initialDrmRequestRetryCount) {
+      int initialDrmRequestRetryCount,
+      int maxLicenseDurationToRenew) {
     Assertions.checkNotNull(uuid);
     Assertions.checkNotNull(mediaDrm);
     Assertions.checkArgument(!C.COMMON_PSSH_UUID.equals(uuid), "Use C.CLEARKEY_UUID instead");
@@ -359,6 +393,7 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
     this.eventDispatcher = new EventDispatcher();
     this.multiSession = multiSession;
     this.initialDrmRequestRetryCount = initialDrmRequestRetryCount;
+    this.maxLicenseDurationToRenew = maxLicenseDurationToRenew;
     mode = MODE_PLAYBACK;
     sessions = new ArrayList<>();
     provisioningSessions = new ArrayList<>();
@@ -551,7 +586,8 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
               callback,
               playbackLooper,
               eventDispatcher,
-              initialDrmRequestRetryCount);
+              initialDrmRequestRetryCount,
+              maxLicenseDurationToRenew);
       sessions.add(session);
     }
     session.acquire();

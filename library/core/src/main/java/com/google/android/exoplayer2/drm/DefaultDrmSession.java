@@ -73,7 +73,6 @@ import java.util.UUID;
 
   private static final int MSG_PROVISION = 0;
   private static final int MSG_KEYS = 1;
-  private static final int MAX_LICENSE_DURATION_TO_RENEW = 60;
 
   private final ExoMediaDrm<T> mediaDrm;
   private final ProvisioningManager<T> provisioningManager;
@@ -83,6 +82,7 @@ import java.util.UUID;
   private final HashMap<String, String> optionalKeyRequestParameters;
   private final EventDispatcher eventDispatcher;
   private final int initialDrmRequestRetryCount;
+  private final int maxLicenseDurationToRenew;
 
   /* package */ final MediaDrmCallback callback;
   /* package */ final UUID uuid;
@@ -112,6 +112,8 @@ import java.util.UUID;
    * @param eventDispatcher The dispatcher for DRM session manager events.
    * @param initialDrmRequestRetryCount The number of times to retry for initial provisioning and
    *     key request before reporting error.
+   * @param maxLicenseDurationToRenew The maximum remaining duration before renewing the license,
+   *     in seconds.
    */
   public DefaultDrmSession(
       UUID uuid,
@@ -125,7 +127,8 @@ import java.util.UUID;
       MediaDrmCallback callback,
       Looper playbackLooper,
       EventDispatcher eventDispatcher,
-      int initialDrmRequestRetryCount) {
+      int initialDrmRequestRetryCount,
+      int maxLicenseDurationToRenew) {
     this.uuid = uuid;
     this.provisioningManager = provisioningManager;
     this.mediaDrm = mediaDrm;
@@ -134,6 +137,7 @@ import java.util.UUID;
     this.optionalKeyRequestParameters = optionalKeyRequestParameters;
     this.callback = callback;
     this.initialDrmRequestRetryCount = initialDrmRequestRetryCount;
+    this.maxLicenseDurationToRenew = maxLicenseDurationToRenew;
     this.eventDispatcher = eventDispatcher;
     state = STATE_OPENING;
 
@@ -301,7 +305,7 @@ import java.util.UUID;
         } else if (state == STATE_OPENED_WITH_KEYS || restoreKeys()) {
           long licenseDurationRemainingSec = getLicenseDurationRemainingSec();
           if (mode == DefaultDrmSessionManager.MODE_PLAYBACK
-              && licenseDurationRemainingSec <= MAX_LICENSE_DURATION_TO_RENEW) {
+              && licenseDurationRemainingSec <= maxLicenseDurationToRenew) {
             Log.d(TAG, "Offline license has expired or will expire soon. "
                 + "Remaining seconds: " + licenseDurationRemainingSec);
             postKeyRequest(ExoMediaDrm.KEY_TYPE_OFFLINE, allowRetry);
